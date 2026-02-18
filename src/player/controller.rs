@@ -25,7 +25,11 @@ impl PlayerController {
         self.camera.yaw += input.mouse_delta.0 * 0.09;
         self.camera.pitch = (self.camera.pitch - input.mouse_delta.1 * 0.09).clamp(-89.0, 89.0);
 
-        let speed = if mode == GameMode::Creative { 14.0 } else { 7.5 };
+        let speed = if mode == GameMode::Creative {
+            14.0
+        } else {
+            7.5
+        };
         let mut dir = [0.0, 0.0, 0.0];
 
         if input.key_down(Keycode::W) {

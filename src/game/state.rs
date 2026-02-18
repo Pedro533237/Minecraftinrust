@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton};
 
 use crate::{
-    engine::{input::InputState, renderer::Renderer},
+    engine::{
+        input::InputState,
+        renderer::{look_at, Renderer},
+    },
     player::controller::PlayerController,
     ui::{
         menu::{draw_text, CreateWorldAction, CreateWorldMenu, MainMenu, MainMenuAction},
@@ -85,7 +88,12 @@ impl GameState {
                             MainMenuAction::CreateWorld => self.screen = Screen::CreateWorld,
                             MainMenuAction::LoadWorld => {
                                 if let Ok(meta) = save::load_meta("novo_mundo") {
-                                    self.spawn_world(meta.name, meta.seed, self.mode, meta.generator);
+                                    self.spawn_world(
+                                        meta.name,
+                                        meta.seed,
+                                        self.mode,
+                                        meta.generator,
+                                    );
                                 }
                             }
                             MainMenuAction::Exit => {
@@ -149,7 +157,8 @@ impl GameState {
         if self.screen == Screen::InGame {
             if let Some(world) = self.running_world.as_mut() {
                 world.ensure_chunks_around_player(2);
-                let ground = world.sample_ground_height(world.player.camera.pos[0], world.player.camera.pos[2]);
+                let ground = world
+                    .sample_ground_height(world.player.camera.pos[0], world.player.camera.pos[2]);
                 world.player.update(input, dt, world.mode, ground);
 
                 if input.key_pressed(Keycode::F5) {
@@ -179,14 +188,32 @@ impl GameState {
                 );
             }
             Screen::InGame => {
-                renderer.setup_3d((width / height).max(0.1), 70.0, 0.1, 400.0);
                 if let Some(world) = &self.running_world {
+                    let c = &world.player.camera;
+                    let f = c.forward();
+                    let view = look_at(
+                        c.pos,
+                        [c.pos[0] + f[0], c.pos[1] + f[1], c.pos[2] + f[2]],
+                        [0.0, 1.0, 0.0],
+                    );
+                    renderer.setup_3d((width / height).max(0.1), 70.0, 0.1, 400.0, view);
                     world.render_world(renderer);
                     renderer.setup_2d(width, height);
-                    draw_text(renderer, "WASD + MOUSE | F5 SALVAR | ESC MENU", 12.0, 14.0, 2.4, [1.0, 1.0, 1.0]);
                     draw_text(
                         renderer,
-                        &format!("MODO: {} | VIDA: {}", world.mode.as_str(), world.player.health),
+                        "WASD + MOUSE | F5 SALVAR | ESC MENU",
+                        12.0,
+                        14.0,
+                        2.4,
+                        [1.0, 1.0, 1.0],
+                    );
+                    draw_text(
+                        renderer,
+                        &format!(
+                            "MODO: {} | VIDA: {}",
+                            world.mode.as_str(),
+                            world.player.health
+                        ),
                         12.0,
                         36.0,
                         2.4,
@@ -215,8 +242,10 @@ impl WorldRuntime {
         let cx = (world_x.floor() as i32).div_euclid(CHUNK_W as i32);
         let cz = (world_z.floor() as i32).div_euclid(CHUNK_D as i32);
         if let Some(chunk) = self.chunks.get(&(cx, cz)) {
-            let lx = (world_x.floor() as i32 - cx * CHUNK_W as i32).clamp(0, CHUNK_W as i32 - 1) as usize;
-            let lz = (world_z.floor() as i32 - cz * CHUNK_D as i32).clamp(0, CHUNK_D as i32 - 1) as usize;
+            let lx = (world_x.floor() as i32 - cx * CHUNK_W as i32).clamp(0, CHUNK_W as i32 - 1)
+                as usize;
+            let lz = (world_z.floor() as i32 - cz * CHUNK_D as i32).clamp(0, CHUNK_D as i32 - 1)
+                as usize;
             for y in (0..CHUNK_H).rev() {
                 if chunk.get(lx, y, lz).solid() {
                     return y as f32;
@@ -228,12 +257,6 @@ impl WorldRuntime {
 
     fn render_world(&self, renderer: &Renderer) {
         let c = &self.player.camera;
-        unsafe {
-            gl::Rotatef(-c.pitch, 1.0, 0.0, 0.0);
-            gl::Rotatef(-c.yaw - 90.0, 0.0, 1.0, 0.0);
-            gl::Translatef(-c.pos[0], -c.pos[1], -c.pos[2]);
-        }
-
         for ((cx, cz), chunk) in &self.chunks {
             let ox = *cx as f32 * CHUNK_W as f32;
             let oz = *cz as f32 * CHUNK_D as f32;

@@ -48,7 +48,11 @@ impl Generator {
     fn height(&self, x: i32, z: i32) -> i32 {
         let base = 18.0;
         let n1 = value_noise_2d(x as f32 * 0.04, z as f32 * 0.04, self.seed);
-        let n2 = value_noise_2d(x as f32 * 0.01, z as f32 * 0.01, self.seed.wrapping_add(999));
+        let n2 = value_noise_2d(
+            x as f32 * 0.01,
+            z as f32 * 0.01,
+            self.seed.wrapping_add(999),
+        );
         (base + n1 * 16.0 + n2 * 12.0) as i32
     }
 }
